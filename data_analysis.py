@@ -24,7 +24,7 @@ def prepare_data(hourly_intensities, hourly_steps, daily_activity):
     hourly_data = pd.merge(hourly_steps, hourly_intensities[[
                            'Id', 'ActivityHour', 'TotalIntensity']], on=['Id', 'ActivityHour'])
 
-    # Ensure the 'Date' column for merging is just the date part, derived from 'ActivityHour'
+    # Format Data column
     hourly_data['Date'] = hourly_data['ActivityHour'].dt.date
 
     # Remove entries with zero steps
@@ -125,6 +125,25 @@ def identify_activities(hourly_data, daily_activity):
     return summary
 
 
+def categorize_users(summary):
+    def user_category(row):
+        categories = ['Cycling', 'Running', 'Weightlifting']
+        counts = [row['CyclingInstances'],
+                  row['RunningInstances'], row['WeightliftingInstances']]
+        active_categories = [category for category,
+                             count in zip(categories, counts) if count >= 7]
+
+        if len(active_categories) > 1:
+            return 'Cross-Trainer'
+        elif len(active_categories) == 1:
+            return active_categories[0]
+        else:
+            return 'Inactive'
+
+    summary['UserCategory'] = summary.apply(user_category, axis=1)
+    return summary
+
+
 def predict_activities():
     hourly_intensities, hourly_steps, daily_activity = load_data()
     hourly_prepared, daily_prepared = prepare_data(
@@ -134,7 +153,7 @@ def predict_activities():
     return activity_instances
 
 
-def visualize_activities(activity_instances):
+def visualize_activities(activity_instances, user_categories):
     # Define colors for each activity
     activity_colors = {
         'Running': '#57A26E',
@@ -183,7 +202,30 @@ def visualize_activities(activity_instances):
     plt.tight_layout()
     plt.show()
 
+    # 2nd pie chart for user categories
+    user_categories_counts = user_categories['UserCategory'].value_counts()
+
+    # Define colors for each category, aligning with the existing color scheme
+    category_colors = {
+        'Running': '#57A26E',       # Green
+        'Cycling': '#E47979',       # Red
+        'Weightlifting': '#0097B2',  # Blue
+        'Cross-Trainer': '#F0DB4F',  # Yellow
+        'Inactive': '#D3D3D3'       # Grey
+    }
+
+    # Extract colors for the pie chart based on the category index
+    pie_colors = [category_colors[category]
+                  for category in user_categories_counts.index]
+
+    plt.figure(figsize=(8, 8))
+    plt.pie(user_categories_counts, labels=user_categories_counts.index, colors=pie_colors,
+            autopct='%1.1f%%', startangle=140)
+    plt.title('User Category Distribution')
+    plt.show()
+
 
 if __name__ == "__main__":
     activity_instances = predict_activities()
-    visualize_activities(activity_instances)
+    user_categories = categorize_users(activity_instances)
+    visualize_activities(activity_instances, user_categories)
